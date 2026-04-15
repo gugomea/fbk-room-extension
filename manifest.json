@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Fbk Room Manager",
+  "version": "1.0",
+
+  "permissions": [
+      "scripting",
+      "identity"
+  ],
+
+  "content_scripts": [{
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+  }],
+
+  "web_accessible_resources": [{
+      "resources": ["inject.js"],
+      "matches": ["https://calendar.google.com/*"]
+  }],
+
+  "host_permissions": [
+    "https://www.googleapis.com/*",
+    "https://my.fbk.eu/*"
+  ],
+
+  "oauth2": {
+    "client_id": "741723739477-ke9229i8k6il08s0dmcj97g14ijurfnk.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar"
+    ]
+  },
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
