@@ -50,7 +50,15 @@ async function fetch_room_info() {
 
 async function fetch_room_calendar() {
     try {
-        const response = await fetch("https://my.fbk.eu/risorse2/api/reservations/2?datestart=2026-04-14T00:00:00.000Z&dateend=2026-04-18T00:00:00.000Z&isGoogleLogged=YES");
+        const now = new Date();
+        const today = new Date(Date.UTC(
+            now.getUTCFullYear(),
+            now.getUTCMonth(),
+            now.getUTCDate()
+        )).toISOString();
+
+        // const response = await fetch(`https://my.fbk.eu/risorse2/api/reservations/2?datestart=${today}&dateend=2026-12-31T00:00:00.000Z&isGoogleLogged=YES`);
+        const response = await fetch(`https://my.fbk.eu/risorse2/api/reservations/2?datestart=${today}&dateend=2026-04-29T00:00:00.000Z&isGoogleLogged=YES`);
         const data = await response.json();
         room_availabilities = data;
     } catch (err) {
@@ -78,6 +86,8 @@ async function book_room(headers, username, room_id, title, start, end) {
         "dataorafine": romeTime.format(end) + ".0",
         "motivazione": title || "Meeting"
     });
+
+    console.log("NOT BOOKING:", booking);
 
     try {
         const createRes = await fetch(

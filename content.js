@@ -1,3 +1,5 @@
+let observer = null;
+let observed = null;
 let starting_time_event = null;
 let ending_time_event = null;
 
@@ -16,23 +18,22 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
-function filterItems() {
-    const list = document.querySelector('ul[role="listbox"][aria-label="Lista de calendarios"]');
-    if (!list) return;
-
-    const items = list.querySelectorAll('li[role="option"]');
+function filter_the_stuff(items) {
 
     let f = (input) => {
+        // TODO: THIS INPUT IS GIVEN IN ITALIAN TIME (btw).
         const normalized = input.replace(" ", "T").replace(".0", "");
         const date = new Date(normalized);
-        return date.toISOString();
+        return date;
+        // return date.toISOString();
     };
 
-    console.log("Config:", config);
+    console.log("filtering items..");
     items.forEach(li => {
         const containerSpan = li.querySelector(':scope > span:nth-of-type(4)');
         const text = containerSpan.querySelector('span').textContent.trim();
         let sala = config.room_map.find(x => x.descrizione == text);
+        // console.log("Sala:", sala);
         // could be a calendar that doesn't represent a sala.
         if (sala) {
             let slot = config
@@ -48,13 +49,26 @@ function filterItems() {
     });
 }
 
-const observer = new MutationObserver(() => filterItems());
-observer.observe(document.body, {
-    childList: true,
-    subtree: true
-});
+function filterItems() {
 
-filterItems();
+    const targetText = "Sala Bondone - Edificio Nord Primo Piano";
+
+    const list = Array.from(document.querySelectorAll('ul[role="listbox"]'))
+        .find(ul =>
+            Array.from(ul.querySelectorAll('li'))
+            .some(li => li.textContent.trim().includes(targetText))
+        );
+
+    if (!list) return;
+
+    if (observed == list) {
+    } else {
+        observed = list;
+        observed.addEventListener('focusin', () => {
+            filter_the_stuff(list.querySelectorAll('li[role="option"]') || []);
+        });
+    }
+}
 
 const s = document.createElement("script");
 s.src = chrome.runtime.getURL("inject.js");
@@ -67,6 +81,8 @@ window.addEventListener("message", (event) => {
   const msg = event.data;
 
   if (msg.type === "EVENT_INFO") {
+      starting_time_event = new Date(msg.payload.event_start);
+      ending_time_event = new Date(msg.payload.event_end);
       // This is the creation of the new event.
       chrome.runtime.sendMessage({
           type: "EVENT_INFO",
@@ -75,3 +91,15 @@ window.addEventListener("message", (event) => {
   }
 });
 
+window.addEventListener("message", (event) => {
+  if (event.source !== window) return;
+
+  const msg = event.data;
+
+  if (msg.type === "CREATING_EVENT") {
+      console.log("CREATINGEVENT");
+      starting_time_event = msg.payload.start
+      ending_time_event = msg.payload.end
+      filterItems();
+  }
+});
