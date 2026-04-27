@@ -1,6 +1,10 @@
 let room_map = null;
 let room_availabilities = null;
 let token = null;
+let headers = null;
+let google_calendars = null;
+
+let global_state = {};
 
 function getToken() {
   console.log("[getToken] Retrieving token...");
@@ -21,13 +25,17 @@ function getToken() {
   });
 }
 
-// Still not using this btw.
-function broadcast(data) {
-  chrome.tabs.query({}, (tabs) => {
-    tabs.forEach(tab => {
-      chrome.tabs.sendMessage(tab.id, { type: "updateData", data });
-    });
-  });
+async function broadcast(data, typ) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  if (!tab?.id) return;
+
+  chrome.tabs.sendMessage(
+      tab.id,
+      Object.assign(
+          {}, {type: typ}, data
+      )
+  );
 }
 
 async function fetch_room_info() {
@@ -51,13 +59,24 @@ async function fetch_room_calendar() {
 }
 
 async function book_room(headers, username, room_id, title, start, end) {
+    const romeTime = new Intl.DateTimeFormat("sv-SE", {
+        timeZone: "Europe/Rome",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+    });
+
     let booking = JSON.stringify({
         "login": username,
         "risorsaId": room_id,
         "ongooglecalendar": "false",
-        "dataorainizio": start,
-        "dataorafine": end,
-        "motivazione": title
+        "dataorainizio": romeTime.format(start) + ".0",
+        "dataorafine": romeTime.format(end) + ".0",
+        "motivazione": title || "Meeting"
     });
 
     try {
@@ -116,14 +135,15 @@ async function get_events_for_calendar(calendar_id, headers) {
     return resp.items ? resp.items : []; //TODO: might be truncated?
 }
 
+function normalize (input) {
+    console.log("Input:", input);
+    const normalized = input.replace(" ", "T").replace(".0", "");
+    const date = new Date(normalized);
+    console.log("Output:", date.toISOString());
+    return date.toISOString();
+};
+
 async function create_calendar_event(calendar_id, summary, start_date, end_date, headers) {
-    let normalize = (input) => {
-        console.log("Input:", input);
-        const normalized = input.replace(" ", "T").replace(".0", "");
-        const date = new Date(normalized);
-        console.log("Output:", date.toISOString());
-        return date.toISOString();
-    };
 
     console.log("[DOING] creating calendar event:", summary);
     try {
@@ -165,7 +185,7 @@ async function create_calendar_event(calendar_id, summary, start_date, end_date,
 async function createCalendar() {
     console.log("SyncRoomCalendar started");
 
-    const headers = {
+    headers = {
         Authorization: "Bearer " + token,
         "Content-Type": "application/json"
     };
@@ -188,9 +208,12 @@ async function createCalendar() {
         );
     }
 
-    let google_calendars = calListData.items
+    google_calendars = calListData.items
 
     console.log("google calendars:", google_calendars);
+
+    console.log("[WARNING] early exiting forn now...");
+    return true;
 
     console.log("Room map:", room_map);
 
@@ -295,6 +318,12 @@ async function main() {
         fetch_room_calendar()
     ]);
 
+    global_state.room_map = room_map;
+    global_state.room_availabilities = room_availabilities;
+    global_state.token = token;
+    console.log("Global State:", global_state);
+    await broadcast(global_state, "updateData");
+
     await createCalendar();
 
     return true;
@@ -306,8 +335,6 @@ chrome.runtime.onMessage.addListener((msg, _, sendResponse) => {
         return false;
     }
 
-    return true;
-
     main()
         .then((result) => {
             sendResponse({ ok: true, result });
@@ -316,5 +343,30 @@ chrome.runtime.onMessage.addListener((msg, _, sendResponse) => {
             sendResponse({ ok: false, error: err.toString() });
         });
 
+    return true;
+});
+
+chrome.runtime.onMessage.addListener(async (msg) => {
+    if (msg.type !== "EVENT_INFO") {
+        console.log("ignoring: " , msg);
+        return false;
+    }
+
+
+    let data = msg.payload;
+
+    console.log("RECIEBING:", msg);
+
+    let google_calendar = google_calendars.find(x => x.id == data.calendar_id);
+    let fbk_room = room_map.find(x => x.descrizione == google_calendar.summary);
+
+    await book_room(
+        headers,
+        "ggomezarnedo",
+        fbk_room.id,
+        data.event_title,
+        new Date(data.event_start),
+        new Date(data.event_end)
+    );
     return true;
 });
