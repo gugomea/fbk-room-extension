@@ -21,11 +21,10 @@ chrome.runtime.onMessage.addListener((msg) => {
 function filter_the_stuff(items) {
 
     let f = (input) => {
-        // TODO: THIS INPUT IS GIVEN IN ITALIAN TIME (btw).
+        // NOTE: THIS INPUT IS GIVEN IN ITALIAN TIME (btw).
         const normalized = input.replace(" ", "T").replace(".0", "");
         const date = new Date(normalized);
         return date;
-        // return date.toISOString();
     };
 
     console.log("filtering items..");
@@ -33,14 +32,13 @@ function filter_the_stuff(items) {
         const containerSpan = li.querySelector(':scope > span:nth-of-type(4)');
         const text = containerSpan.querySelector('span').textContent.trim();
         let sala = config.room_map.find(x => x.descrizione == text);
-        // console.log("Sala:", sala);
         // could be a calendar that doesn't represent a sala.
         if (sala) {
             let slot = config
                 .room_availabilities
                 .filter(x => x.resourceId == sala.id)
                 .find((x) => {
-                    return starting_time_event && ending_time_event && ( f(x.start).getTime() <= starting_time_event.getTime() && f(x.end).getTime() >= ending_time_event.getTime() )
+                    return starting_time_event && ending_time_event && ( f(x.start).getTime() <= starting_time_event.getTime() && f(x.end).getTime() >= ending_time_event.getTime() );
                });
             if (slot) {
                 li.style.display = "none";
