@@ -39,13 +39,18 @@ function try_parse_event(flat_arr) {
 
     let start_idx = get_index_start(flat_arr);
     if (start_idx == -1) return undefined;
+    // TODO: I could observe that when using the personal calendar this
+    // id does not appear
     let cal_id = flat_arr.find(x => typeof x === "string" && x.endsWith("@group.calendar.google.com"));
 
-    console.log("Event:", flat_arr);
+    // console.log("Event:", flat_arr);
 
     return {
+        // TODO: enforce on the UI for the title to be non-empty.
+        // Otherwise we will find some garbage.
+        // Another alternative is to just put "Meeting" always.
         event_title: flat_arr[start_idx-2],
-        event_descriptoin: flat_arr[start_idx-1],
+        event_description: flat_arr[start_idx-1],
         event_start: flat_arr[start_idx],
         event_end: flat_arr[start_idx+1],
         event_ubication: flat_arr[start_idx+3],
@@ -68,9 +73,6 @@ function process_request(body) {
     }
 }
 
-// TODO: Attach this function to onChange of the html element of the event 
-// and trigger a click on save with a global variable so
-// that we know we have to ignore the request.
 function send_updated_event(result) {
     console.log("The actual result:", result);
     window.postMessage({

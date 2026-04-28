@@ -3,6 +3,7 @@ let room_availabilities = null;
 let token = null;
 let headers = null;
 let google_calendars = null;
+let user_email = null;
 
 let global_state = {};
 
@@ -57,8 +58,7 @@ async function fetch_room_calendar() {
             now.getUTCDate()
         )).toISOString();
 
-        // const response = await fetch(`https://my.fbk.eu/risorse2/api/reservations/2?datestart=${today}&dateend=2026-12-31T00:00:00.000Z&isGoogleLogged=YES`);
-        const response = await fetch(`https://my.fbk.eu/risorse2/api/reservations/2?datestart=${today}&dateend=2026-04-29T00:00:00.000Z&isGoogleLogged=YES`);
+        const response = await fetch(`https://my.fbk.eu/risorse2/api/reservations/2?datestart=${today}&dateend=2026-12-31T00:00:00.000Z&isGoogleLogged=YES`);
         const data = await response.json();
         room_availabilities = data;
     } catch (err) {
@@ -66,7 +66,7 @@ async function fetch_room_calendar() {
     }
 }
 
-async function book_room(headers, username, room_id, title, start, end) {
+async function book_room(headers, username, room_id, title, start, end, dont_send) {
     const romeTime = new Intl.DateTimeFormat("sv-SE", {
         timeZone: "Europe/Rome",
         year: "numeric",
@@ -87,7 +87,9 @@ async function book_room(headers, username, room_id, title, start, end) {
         "motivazione": title || "Meeting"
     });
 
-    console.log("NOT BOOKING:", booking);
+    if (dont_send) {
+        return {};
+    }
 
     try {
         const createRes = await fetch(
@@ -222,8 +224,8 @@ async function createCalendar() {
 
     console.log("google calendars:", google_calendars);
 
-    console.log("[WARNING] early exiting forn now...");
-    return true;
+    // console.log("[WARNING] early exiting forn now...");
+    // return true;
 
     console.log("Room map:", room_map);
 
@@ -256,6 +258,8 @@ async function createCalendar() {
     }
 
     console.log("All calendars succesfully created");
+    console.log("And thats it for now...");
+    return;
 
     // Fetch all events for each calendar.
     let dict = {};
@@ -320,6 +324,19 @@ async function createCalendar() {
     console.log("[FINAL] Dict:", dict);
 }
 
+async function getGoogleUsername() {
+    const response = await fetch(
+        "https://openidconnect.googleapis.com/v1/userinfo",
+        {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+    const data = await response.json();
+    user_email = data.email;
+
+    console.log("DATA:", data);
+
+}
+
 async function main() {
 
     await Promise.all([
@@ -334,10 +351,13 @@ async function main() {
     console.log("Global State:", global_state);
     await broadcast(global_state, "updateData");
 
+    await getGoogleUsername();
+
     await createCalendar();
 
     return true;
 }
+
 
 chrome.runtime.onMessage.addListener((msg, _, sendResponse) => {
     if (msg.type !== "ENTRY_POINT") {
@@ -365,18 +385,24 @@ chrome.runtime.onMessage.addListener(async (msg) => {
 
     let data = msg.payload;
 
-    console.log("RECIEBING:", msg);
-
     let google_calendar = google_calendars.find(x => x.id == data.calendar_id);
     let fbk_room = room_map.find(x => x.descrizione == google_calendar.summary);
 
-    await book_room(
-        headers,
-        "ggomezarnedo",
-        fbk_room.id,
-        data.event_title,
-        new Date(data.event_start),
-        new Date(data.event_end)
-    );
+    let [username, domain] = user_email.split("@"); //username@fbk.eu
+    if (domain != "fbk.eu") {
+        console.log("Domain", domain, "is not allowed");
+    } else {
+        console.log("HOLA:", username, domain);
+        let result = await book_room(
+            headers,
+            username,
+            fbk_room.id,
+            data.event_title,
+            new Date(data.event_start),
+            new Date(data.event_end),
+            true
+        );
+        console.log("Booked:", result);
+    }
     return true;
 });
